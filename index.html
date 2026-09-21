@@ -1,0 +1,1094 @@
+<title>Stall Layout Plotter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Karla:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EEF1EF;
+    --surface:#FFFFFF;
+    --surface-2:#F5F7F5;
+    --ink:#1E2A2F;
+    --ink-soft:#5B6B6E;
+    --line:#C9D2CE;
+    --line-strong:#9FAEA9;
+    --grid-line:#DCE3DF;
+    --grid-line-major:#C3CDC8;
+    --accent:#D9642B;
+    --accent-soft:#F6DBC9;
+    --good:#2F8F5B;
+    --bad:#B4483A;
+    --canvas-bg:#FBFCFB;
+    --boundary:#3B4A50;
+    --font-head:'Archivo',system-ui,sans-serif;
+    --font-body:'Karla',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+    --radius:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12181A; --surface:#1A2225; --surface-2:#202A2D;
+      --ink:#E7EDEA; --ink-soft:#9AACA8; --line:#2C3A3D; --line-strong:#3E4F53;
+      --grid-line:#212C2E; --grid-line-major:#2C3A3D; --accent:#F07A3C; --accent-soft:#4A2A16;
+      --good:#4CB37B; --bad:#E07362; --canvas-bg:#161E20; --boundary:#9AACA8;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12181A; --surface:#1A2225; --surface-2:#202A2D;
+    --ink:#E7EDEA; --ink-soft:#9AACA8; --line:#2C3A3D; --line-strong:#3E4F53;
+    --grid-line:#212C2E; --grid-line-major:#2C3A3D; --accent:#F07A3C; --accent-soft:#4A2A16;
+    --good:#4CB37B; --bad:#E07362; --canvas-bg:#161E20; --boundary:#9AACA8;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    padding-inline:16px;
+    padding-block:22px 40px;
+  }
+  .wrap{max-width:1240px;margin:0 auto;}
+
+  header{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 24px;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:12px;
+  }
+  header h1{
+    font-family:var(--font-head);
+    font-weight:800;
+    font-size:clamp(1.3rem,3.6vw,1.7rem);
+    margin:0 0 4px;
+    letter-spacing:-0.01em;
+  }
+  header p{margin:0;color:var(--ink-soft);font-size:.85rem;max-width:56ch;line-height:1.5;}
+  .sync{
+    font-family:var(--font-mono);
+    font-size:.72rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex:none;
+  }
+  .sync .led{width:7px;height:7px;border-radius:50%;background:var(--line-strong);}
+  .sync.live .led{background:var(--good);}
+  .sync.saving .led{background:var(--accent);}
+
+  .howto{
+    background:var(--surface-2);
+    border:1px dashed var(--line-strong);
+    border-radius:var(--radius);
+    padding:10px 14px;
+    font-size:.8rem;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin-bottom:12px;
+  }
+  .howto b{color:var(--ink);}
+
+  .panelrow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+    align-items:center;
+  }
+  .field{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:5px 9px;
+    font-size:.78rem;
+    color:var(--ink-soft);
+  }
+  .field label{white-space:nowrap;}
+  .field input{
+    width:56px;
+    font-family:var(--font-mono);
+    font-size:.82rem;
+    border:none;
+    background:transparent;
+    color:var(--ink);
+    text-align:right;
+  }
+  .field input:focus{outline:none;}
+  .field span.unit{color:var(--ink-soft);}
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+    align-items:center;
+  }
+  .mode-group{display:flex;gap:0;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;}
+  .mode-group button{border:none;border-right:1px solid var(--line-strong);border-radius:0;}
+  .mode-group button:last-child{border-right:none;}
+  button{
+    font-family:var(--font-body);
+    font-size:.8rem;
+    font-weight:600;
+    border:1px solid var(--line-strong);
+    background:var(--surface);
+    color:var(--ink);
+    padding:7px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  button:hover{border-color:var(--accent);}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.danger{color:var(--bad);border-color:var(--bad);background:transparent;}
+  button.toggle[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  select{
+    font-family:var(--font-body);
+    font-size:.8rem;
+    font-weight:600;
+    border:1px solid var(--line-strong);
+    background:var(--surface);
+    color:var(--ink);
+    padding:7px 10px;
+    border-radius:8px;
+  }
+
+  .segrow, .selrow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 10px;
+    align-items:center;
+    background:var(--surface);
+    border:1px solid var(--accent);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    margin-bottom:10px;
+    font-size:.82rem;
+  }
+  .selrow{border-color:var(--line-strong);}
+  .segrow strong, .selrow strong{font-family:var(--font-head);font-size:.8rem;}
+  .segrow .field input, .selrow .field input{width:64px;}
+  .selrow .stat{font-family:var(--font-mono);color:var(--ink-soft);}
+  .selrow .stat b{color:var(--ink);}
+  .close-x{margin-left:auto;background:transparent;border:none;color:var(--ink-soft);font-size:1rem;padding:2px 6px;}
+
+  .stage{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:14px;
+  }
+  @media (min-width:800px){
+    .stage{grid-template-columns:1fr 260px;}
+  }
+
+  .canvas-shell{
+    position:relative;
+    background:var(--canvas-bg);
+    border:1.5px solid var(--line-strong);
+    border-radius:var(--radius);
+    overflow:hidden;
+    touch-action:none;
+  }
+  svg{display:block;width:100%;height:auto;}
+  svg.mode-draw{cursor:crosshair;}
+  svg.mode-pan{cursor:grab;}
+  svg.mode-pan.panning{cursor:grabbing;}
+  svg.mode-select{cursor:default;}
+  svg.mode-delete{cursor:not-allowed;}
+
+  .coord-readout{
+    position:absolute;
+    left:10px;
+    bottom:10px;
+    background:color-mix(in srgb, var(--surface) 88%, transparent);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:5px 10px;
+    font-family:var(--font-mono);
+    font-size:.72rem;
+    color:var(--ink-soft);
+    pointer-events:none;
+  }
+  .coord-readout b{color:var(--ink);}
+  .zoom-controls{
+    position:absolute;
+    right:10px;
+    bottom:10px;
+    display:flex;
+    gap:4px;
+  }
+  .zoom-controls button{padding:6px 10px;background:var(--surface);}
+
+  .boundary-rect{fill:none;stroke:var(--boundary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:none;}
+  .axis-label{font-family:var(--font-mono);font-size:.34px;fill:var(--ink-soft);}
+  .dim-label{font-family:var(--font-mono);font-size:.4px;fill:var(--boundary);font-weight:600;}
+
+  .pt{fill:var(--surface);stroke:var(--ink);stroke-width:2;vector-effect:non-scaling-stroke;cursor:pointer;}
+  .pt:hover{stroke:var(--accent);}
+  .pt.active{fill:var(--accent);stroke:var(--accent);}
+  .pt.selected-vertex{stroke:var(--accent);stroke-width:3;}
+  .pt.delete-mode:hover{fill:var(--bad);stroke:var(--bad);}
+  .edge-live{stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:.15 .1;fill:none;}
+  .stall-poly{fill:var(--accent);fill-opacity:.16;stroke:var(--ink);stroke-width:1.6;vector-effect:non-scaling-stroke;cursor:pointer;}
+  .stall-poly:hover{fill-opacity:.28;}
+  .stall-poly.selected{fill-opacity:.3;stroke:var(--accent);stroke-width:2.4;}
+  .stall-poly.delete-mode:hover{stroke:var(--bad);fill:var(--bad);fill-opacity:.22;}
+  .stall-label{
+    font-family:var(--font-mono);
+    font-weight:600;
+    fill:var(--ink);
+    text-anchor:middle;
+    dominant-baseline:middle;
+    pointer-events:none;
+    user-select:none;
+  }
+
+  .side{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .side h2{
+    font-family:var(--font-head);
+    font-size:.86rem;
+    margin:0;
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  .side h2 span{font-family:var(--font-mono);color:var(--ink-soft);font-weight:400;font-size:.72rem;}
+  .total-area{
+    font-family:var(--font-mono);
+    font-size:.78rem;
+    color:var(--ink-soft);
+    background:var(--surface-2);
+    border-radius:7px;
+    padding:6px 9px;
+  }
+  .total-area b{color:var(--ink);}
+  .stall-list{
+    list-style:none;
+    margin:0;padding:0;
+    max-height:460px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .stall-list li{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:7px 9px;
+    font-size:.78rem;
+    cursor:pointer;
+  }
+  .stall-list li:hover{border-color:var(--accent);}
+  .stall-list li .top{display:flex;justify-content:space-between;align-items:center;}
+  .stall-list li b{font-family:var(--font-mono);}
+  .stall-list li .dims{color:var(--ink-soft);font-family:var(--font-mono);font-size:.7rem;}
+  .empty{color:var(--ink-soft);font-size:.8rem;font-style:italic;}
+
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(20,26,28,.45);
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;z-index:10;
+  }
+  .modal{
+    background:var(--surface);
+    border-radius:var(--radius);
+    border:1px solid var(--line-strong);
+    padding:18px;
+    width:100%;
+    max-width:300px;
+  }
+  .modal h3{margin:0 0 10px;font-family:var(--font-head);font-size:1rem;}
+  .modal input{
+    width:100%;
+    font-family:var(--font-mono);
+    font-size:1rem;
+    padding:8px 10px;
+    border-radius:7px;
+    border:1px solid var(--line-strong);
+    background:var(--surface-2);
+    color:var(--ink);
+    margin-bottom:12px;
+  }
+  .modal .row{display:flex;gap:8px;justify-content:flex-end;}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Stall Layout Plotter</h1>
+      <p>True-to-scale site plan: 1 drawing unit = 1 metre. Place dots, join them to trace each stall, then it's ready for area-based pricing.</p>
+    </div>
+    <div class="sync" id="sync-indicator"><span class="led"></span><span id="sync-text">connecting</span></div>
+  </header>
+
+  <div class="howto">
+    <b>Add a dot</b> — click empty floor in Draw mode. <b>Trace a stall</b> — click dots in order, then click the first dot again (or "Close shape") to save it. <b>Type an exact segment</b> — enter distance + bearing below while tracing. <b>Edit a stall</b> — switch to Select, click it, rotate or delete. <b>Move around</b> — Pan mode to drag the view, scroll or +/− to zoom.
+  </div>
+
+  <div class="panelrow">
+    <div class="field"><label>Hall length</label><input type="number" id="hall-w" step="0.1" min="1"><span class="unit">m</span></div>
+    <div class="field"><label>Hall width</label><input type="number" id="hall-h" step="0.1" min="1"><span class="unit">m</span></div>
+    <div class="field"><label>Tile</label><input type="number" id="tile-size" step="0.05" min="0.05"><span class="unit">m</span></div>
+    <button id="btn-apply-hall">Apply</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="mode-group">
+      <button id="mode-draw" class="toggle" aria-pressed="true">Draw</button>
+      <button id="mode-select" class="toggle" aria-pressed="false">Select</button>
+      <button id="mode-pan" class="toggle" aria-pressed="false">Pan</button>
+      <button id="mode-delete" class="toggle" aria-pressed="false">Delete</button>
+    </div>
+    <select id="snap-mode">
+      <option value="tile">Snap: tile (0.6 m)</option>
+      <option value="meter">Snap: metre</option>
+      <option value="off">Snap: off</option>
+    </select>
+    <button id="btn-cancel" disabled>Cancel trace</button>
+    <button id="btn-close-shape" disabled>Close shape</button>
+    <button id="btn-undo" disabled>Undo</button>
+    <button id="btn-clear" class="danger">Clear all</button>
+  </div>
+
+  <div class="segrow" id="seg-panel" hidden>
+    <strong>Next point from last dot:</strong>
+    <div class="field"><label>Distance</label><input type="number" id="seg-dist" step="0.1" min="0"><span class="unit">m</span></div>
+    <div class="field"><label>Bearing</label><input type="number" id="seg-angle" step="1" min="0" max="360"><span class="unit">° from N, clockwise</span></div>
+    <button id="btn-seg-add" class="primary">Add point</button>
+  </div>
+
+  <div class="selrow" id="sel-panel" hidden>
+    <strong id="sel-title">Stall</strong>
+    <span class="stat">Area <b id="sel-area">—</b> m²</span>
+    <span class="stat">Bounds <b id="sel-bbox">—</b> m</span>
+    <div class="field"><label>Rotate</label><input type="number" id="sel-rotate" step="5" value="15"><span class="unit">°</span></div>
+    <button id="btn-rotate-cw">↻ Apply</button>
+    <button id="btn-rotate-ccw">↺ Apply</button>
+    <button id="btn-sel-delete" class="danger">Delete stall</button>
+    <button class="close-x" id="sel-close">✕</button>
+  </div>
+
+  <div class="stage">
+    <div class="canvas-shell">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="coord-readout" id="coord-readout">x — m, y — m</div>
+      <div class="zoom-controls">
+        <button id="btn-rotate-view-ccw" title="Rotate view left">⟲</button>
+        <button id="btn-rotate-view-reset" title="Reset view angle">0°</button>
+        <button id="btn-rotate-view-cw" title="Rotate view right">⟳</button>
+        <span style="width:6px"></span>
+        <button id="btn-zoom-out" title="Zoom out">−</button>
+        <button id="btn-zoom-fit" title="Fit to hall">Fit</button>
+        <button id="btn-zoom-in" title="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="side">
+      <h2>Stalls <span id="stall-count">0</span></h2>
+      <div class="total-area">Plotted area: <b id="total-area">0.0</b> m²</div>
+      <ul class="stall-list" id="stall-list"></ul>
+      <div class="empty" id="stall-empty">No stalls traced yet.</div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+
+<script>
+(function(){
+  var svg = document.getElementById("canvas");
+  var canvasShell = svg.parentElement;
+  var syncEl = document.getElementById("sync-indicator");
+  var syncText = document.getElementById("sync-text");
+  var coordReadout = document.getElementById("coord-readout");
+
+  var inputHallW = document.getElementById("hall-w");
+  var inputHallH = document.getElementById("hall-h");
+  var inputTile = document.getElementById("tile-size");
+  var btnApplyHall = document.getElementById("btn-apply-hall");
+
+  var modeDraw = document.getElementById("mode-draw");
+  var modeSelect = document.getElementById("mode-select");
+  var modePan = document.getElementById("mode-pan");
+  var modeDelete = document.getElementById("mode-delete");
+  var snapSelect = document.getElementById("snap-mode");
+
+  var btnCancel = document.getElementById("btn-cancel");
+  var btnCloseShape = document.getElementById("btn-close-shape");
+  var btnUndo = document.getElementById("btn-undo");
+  var btnClear = document.getElementById("btn-clear");
+
+  var segPanel = document.getElementById("seg-panel");
+  var segDist = document.getElementById("seg-dist");
+  var segAngle = document.getElementById("seg-angle");
+  var btnSegAdd = document.getElementById("btn-seg-add");
+
+  var selPanel = document.getElementById("sel-panel");
+  var selTitle = document.getElementById("sel-title");
+  var selArea = document.getElementById("sel-area");
+  var selBbox = document.getElementById("sel-bbox");
+  var selRotate = document.getElementById("sel-rotate");
+  var btnRotateCw = document.getElementById("btn-rotate-cw");
+  var btnRotateCcw = document.getElementById("btn-rotate-ccw");
+  var btnSelDelete = document.getElementById("btn-sel-delete");
+  var selClose = document.getElementById("sel-close");
+
+  var btnZoomIn = document.getElementById("btn-zoom-in");
+  var btnZoomOut = document.getElementById("btn-zoom-out");
+  var btnZoomFit = document.getElementById("btn-zoom-fit");
+  var btnRotateViewCw = document.getElementById("btn-rotate-view-cw");
+  var btnRotateViewCcw = document.getElementById("btn-rotate-view-ccw");
+  var btnRotateViewReset = document.getElementById("btn-rotate-view-reset");
+
+  var stallListEl = document.getElementById("stall-list");
+  var stallCountEl = document.getElementById("stall-count");
+  var stallEmptyEl = document.getElementById("stall-empty");
+  var totalAreaEl = document.getElementById("total-area");
+  var modalRoot = document.getElementById("modal-root");
+
+  // ---- model ----
+  var hall = { w: 30.8, h: 20.5, tile: 0.6 };
+  var points = [];   // {id, x, y} meters
+  var stalls = [];   // {id, pointIds:[...], label}
+  var nextPointN = 1;
+  var nextStallN = 1;
+
+  // local-only UI state
+  var mode = "draw"; // draw | select | pan | delete
+  var snapMode = "tile";
+  var currentPath = [];
+  var selectedStallId = null;
+  var dragging = null;
+  var history = [];
+  var view = {};
+  var MARGIN = 2;
+  var viewRotation = 0; // degrees, display-only, not persisted to shared data
+  try{ var storedRot = localStorage.getItem("stallplotter-view-rotation"); if(storedRot !== null) viewRotation = parseFloat(storedRot) || 0; }catch(e){}
+
+  var dbDoc = null;
+  var suppressRemote = false;
+
+  inputHallW.value = hall.w; inputHallH.value = hall.h; inputTile.value = hall.tile;
+
+  function fitView(){
+    view = { x: -MARGIN, y: -MARGIN, w: hall.w + MARGIN*2, h: hall.h + MARGIN*2 };
+    updateViewBox();
+  }
+  function updateViewBox(){
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + view.w + " " + view.h);
+  }
+
+  function snapshot(){
+    return JSON.stringify({points: points, stalls: stalls, nextPointN: nextPointN, nextStallN: nextStallN});
+  }
+  function pushHistory(){
+    history.push(snapshot());
+    if(history.length > 80) history.shift();
+    btnUndo.disabled = false;
+  }
+  function applySnapshot(s){
+    var d = JSON.parse(s);
+    points = d.points; stalls = d.stalls; nextPointN = d.nextPointN; nextStallN = d.nextStallN;
+  }
+
+  function findPoint(id){ for(var i=0;i<points.length;i++) if(points[i].id===id) return points[i]; return null; }
+  function findStall(id){ for(var i=0;i<stalls.length;i++) if(stalls[i].id===id) return stalls[i]; return null; }
+  function centroid(ids){
+    var xs=0, ys=0, n=0;
+    ids.forEach(function(id){ var p=findPoint(id); if(p){xs+=p.x; ys+=p.y; n++;} });
+    return n ? {x:xs/n, y:ys/n} : {x:0,y:0};
+  }
+  function polyArea(pts){
+    var a = 0;
+    for(var i=0;i<pts.length;i++){
+      var p1 = pts[i], p2 = pts[(i+1)%pts.length];
+      a += p1.x*p2.y - p2.x*p1.y;
+    }
+    return Math.abs(a)/2;
+  }
+  function bbox(pts){
+    var xs = pts.map(function(p){return p.x;}), ys = pts.map(function(p){return p.y;});
+    return { w: Math.max.apply(null,xs)-Math.min.apply(null,xs), h: Math.max.apply(null,ys)-Math.min.apply(null,ys) };
+  }
+
+  function snapVal(v, step){ return Math.round(v/step)*step; }
+  function applySnap(pos){
+    if(snapMode === "off") return { x: Math.round(pos.x*100)/100, y: Math.round(pos.y*100)/100 };
+    var step = snapMode === "tile" ? hall.tile : 1;
+    return { x: snapVal(pos.x, step), y: snapVal(pos.y, step) };
+  }
+
+  function svgPointRaw(evt){
+    var pt = svg.createSVGPoint();
+    var t = (evt.touches && evt.touches[0]) ? evt.touches[0] : evt;
+    pt.x = t.clientX; pt.y = t.clientY;
+    var ctm = svg.getScreenCTM();
+    if(!ctm) return {x:0,y:0};
+    var loc = pt.matrixTransform(ctm.inverse());
+    return { x: loc.x, y: loc.y };
+  }
+
+  // ---- rendering ----
+  function render(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var sceneG = document.createElementNS(svg.namespaceURI,"g");
+    sceneG.setAttribute("transform", "rotate(" + viewRotation + " " + (hall.w/2) + " " + (hall.h/2) + ")");
+    svg.appendChild(sceneG);
+
+    // tile grid, confined to hall extent
+    var gridG = document.createElementNS(svg.namespaceURI,"g");
+    for(var gx=0; gx<=hall.w+1e-6; gx+=hall.tile){
+      var isMeter = Math.abs(gx - Math.round(gx)) < 1e-6;
+      var l = document.createElementNS(svg.namespaceURI,"line");
+      l.setAttribute("x1",gx); l.setAttribute("y1",0); l.setAttribute("x2",gx); l.setAttribute("y2",hall.h);
+      l.setAttribute("stroke", isMeter ? "var(--grid-line-major)" : "var(--grid-line)");
+      l.setAttribute("stroke-width", isMeter ? 0.02 : 0.008);
+      gridG.appendChild(l);
+    }
+    for(var gy=0; gy<=hall.h+1e-6; gy+=hall.tile){
+      var isMeterY = Math.abs(gy - Math.round(gy)) < 1e-6;
+      var l2 = document.createElementNS(svg.namespaceURI,"line");
+      l2.setAttribute("x1",0); l2.setAttribute("y1",gy); l2.setAttribute("x2",hall.w); l2.setAttribute("y2",gy);
+      l2.setAttribute("stroke", isMeterY ? "var(--grid-line-major)" : "var(--grid-line)");
+      l2.setAttribute("stroke-width", isMeterY ? 0.02 : 0.008);
+      gridG.appendChild(l2);
+    }
+    sceneG.appendChild(gridG);
+
+    // boundary + dimension labels
+    var boundary = document.createElementNS(svg.namespaceURI,"rect");
+    boundary.setAttribute("x",0); boundary.setAttribute("y",0);
+    boundary.setAttribute("width",hall.w); boundary.setAttribute("height",hall.h);
+    boundary.setAttribute("class","boundary-rect");
+    sceneG.appendChild(boundary);
+
+    var topLabel = document.createElementNS(svg.namespaceURI,"text");
+    topLabel.setAttribute("x", hall.w/2); topLabel.setAttribute("y", -0.5);
+    topLabel.setAttribute("class","dim-label"); topLabel.setAttribute("text-anchor","middle");
+    topLabel.textContent = hall.w.toFixed(1) + " m";
+    sceneG.appendChild(topLabel);
+
+    var sideLabel = document.createElementNS(svg.namespaceURI,"text");
+    sideLabel.setAttribute("x", -0.5); sideLabel.setAttribute("y", hall.h/2);
+    sideLabel.setAttribute("class","dim-label"); sideLabel.setAttribute("text-anchor","middle");
+    sideLabel.setAttribute("transform", "rotate(-90 " + (-0.5) + " " + (hall.h/2) + ")");
+    sideLabel.textContent = hall.h.toFixed(1) + " m";
+    sceneG.appendChild(sideLabel);
+
+    // axis ticks every 2m
+    for(var ax=0; ax<=hall.w; ax+=2){
+      var t1 = document.createElementNS(svg.namespaceURI,"text");
+      t1.setAttribute("x",ax); t1.setAttribute("y",-0.15);
+      t1.setAttribute("class","axis-label"); t1.setAttribute("text-anchor","middle");
+      t1.textContent = ax;
+      sceneG.appendChild(t1);
+    }
+    for(var ay=0; ay<=hall.h; ay+=2){
+      var t2 = document.createElementNS(svg.namespaceURI,"text");
+      t2.setAttribute("x",-0.2); t2.setAttribute("y",ay+0.12);
+      t2.setAttribute("class","axis-label"); t2.setAttribute("text-anchor","end");
+      t2.textContent = ay;
+      sceneG.appendChild(t2);
+    }
+
+    // stalls
+    stalls.forEach(function(stall){
+      var pts = stall.pointIds.map(findPoint).filter(Boolean);
+      if(pts.length < 3) return;
+      var poly = document.createElementNS(svg.namespaceURI,"polygon");
+      poly.setAttribute("points", pts.map(function(p){return p.x+","+p.y;}).join(" "));
+      var cls = "stall-poly";
+      if(mode === "delete") cls += " delete-mode";
+      if(selectedStallId === stall.id) cls += " selected";
+      poly.setAttribute("class", cls);
+      poly.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(mode === "delete") deleteStall(stall.id);
+        else if(mode === "select") selectStall(stall.id);
+      });
+      sceneG.appendChild(poly);
+
+      var c = centroid(stall.pointIds);
+      var label = document.createElementNS(svg.namespaceURI,"text");
+      label.setAttribute("x", c.x); label.setAttribute("y", c.y);
+      label.setAttribute("class","stall-label");
+      label.setAttribute("font-size","0.5");
+      label.setAttribute("transform", "rotate(" + (-viewRotation) + " " + c.x + " " + c.y + ")");
+      label.textContent = stall.label;
+      sceneG.appendChild(label);
+    });
+
+    // in-progress path
+    if(currentPath.length){
+      var pts2 = currentPath.map(findPoint).filter(Boolean);
+      if(pts2.length){
+        var path = document.createElementNS(svg.namespaceURI,"polyline");
+        path.setAttribute("points", pts2.map(function(p){return p.x+","+p.y;}).join(" "));
+        path.setAttribute("class","edge-live");
+        sceneG.appendChild(path);
+      }
+    }
+
+    // points
+    points.forEach(function(p){
+      var isActive = currentPath.indexOf(p.id) !== -1;
+      var c = document.createElementNS(svg.namespaceURI,"circle");
+      c.setAttribute("cx",p.x); c.setAttribute("cy",p.y); c.setAttribute("r", isActive ? 0.16 : 0.12);
+      var cls = "pt" + (isActive?" active":"") + (mode==="delete"?" delete-mode":"");
+      c.setAttribute("class", cls);
+      c.addEventListener("mousedown", function(e){ e.stopPropagation(); if(mode==="draw"||mode==="select") startDrag(p.id, e); });
+      c.addEventListener("touchstart", function(e){ e.stopPropagation(); if(mode==="draw"||mode==="select") startDrag(p.id, e); }, {passive:true});
+      c.addEventListener("click", function(e){ e.stopPropagation(); onPointClick(p.id); });
+      sceneG.appendChild(c);
+    });
+
+    btnCancel.disabled = currentPath.length === 0;
+    btnCloseShape.disabled = currentPath.length < 3;
+    segPanel.hidden = !(mode==="draw" && currentPath.length >= 1);
+
+    renderSelection();
+
+    // side list
+    stallCountEl.textContent = stalls.length;
+    stallEmptyEl.style.display = stalls.length ? "none" : "block";
+    var total = 0;
+    stallListEl.innerHTML = "";
+    stalls.slice().sort(function(a,b){return (parseFloat(a.label)||0)-(parseFloat(b.label)||0);}).forEach(function(stall){
+      var pts = stall.pointIds.map(findPoint).filter(Boolean);
+      var area = pts.length>=3 ? polyArea(pts) : 0;
+      var box = pts.length ? bbox(pts) : {w:0,h:0};
+      total += area;
+      var li = document.createElement("li");
+      var top = document.createElement("div"); top.className = "top";
+      var b = document.createElement("b"); b.textContent = "#" + stall.label;
+      var del = document.createElement("button"); del.textContent = "Remove";
+      del.addEventListener("click", function(e){ e.stopPropagation(); deleteStall(stall.id); });
+      top.appendChild(b); top.appendChild(del);
+      var dims = document.createElement("div"); dims.className = "dims";
+      dims.textContent = box.w.toFixed(1) + " × " + box.h.toFixed(1) + " m  ·  " + area.toFixed(1) + " m²";
+      li.appendChild(top); li.appendChild(dims);
+      li.addEventListener("click", function(){ mode="select"; syncModeButtons(); selectStall(stall.id); });
+      stallListEl.appendChild(li);
+    });
+    totalAreaEl.textContent = total.toFixed(1);
+  }
+
+  function renderSelection(){
+    if(mode !== "select" || !selectedStallId || !findStall(selectedStallId)){
+      selPanel.hidden = true;
+      return;
+    }
+    var stall = findStall(selectedStallId);
+    var pts = stall.pointIds.map(findPoint).filter(Boolean);
+    selPanel.hidden = false;
+    selTitle.textContent = "Stall #" + stall.label;
+    selArea.textContent = pts.length>=3 ? polyArea(pts).toFixed(1) : "—";
+    var box = pts.length ? bbox(pts) : {w:0,h:0};
+    selBbox.textContent = box.w.toFixed(1) + " × " + box.h.toFixed(1);
+  }
+
+  // ---- interactions ----
+  function onCanvasClick(evt){
+    if(dragging) return;
+    if(mode === "select"){ selectStall(null); return; }
+    if(mode !== "draw") return;
+    var pos = applySnap(svgPointRaw(evt));
+    pushHistory();
+    var p = {id:"p"+(nextPointN++), x:pos.x, y:pos.y};
+    points.push(p);
+    currentPath.push(p.id);
+    save();
+    render();
+  }
+
+  function onPointClick(id){
+    if(mode === "delete"){ deletePoint(id); return; }
+    if(mode === "select"){ return; }
+    if(mode !== "draw") return;
+    if(currentPath.length && currentPath[0] === id && currentPath.length >= 3){
+      closePath();
+      return;
+    }
+    if(currentPath.indexOf(id) === -1){
+      currentPath.push(id);
+      render();
+    }
+  }
+
+  function closePath(){
+    var ids = currentPath.slice();
+    currentPath = [];
+    openLabelModal(function(label){
+      if(label === null){ render(); return; }
+      pushHistory();
+      stalls.push({id:"s"+(nextStallN++), pointIds:ids, label: label || String(stalls.length+1)});
+      save();
+      render();
+    });
+  }
+
+  function cancelPath(){ currentPath = []; render(); }
+
+  function addSegmentPoint(){
+    if(!currentPath.length) return;
+    var dist = parseFloat(segDist.value);
+    var brg = parseFloat(segAngle.value);
+    if(!isFinite(dist) || dist <= 0 || !isFinite(brg)) return;
+    var last = findPoint(currentPath[currentPath.length-1]);
+    if(!last) return;
+    var rad = brg * Math.PI / 180;
+    var raw = { x: last.x + dist*Math.sin(rad), y: last.y - dist*Math.cos(rad) };
+    var pos = applySnap(raw);
+    // if close enough to path start, treat as closing
+    if(currentPath.length >= 3){
+      var start = findPoint(currentPath[0]);
+      if(start && Math.hypot(start.x-pos.x, start.y-pos.y) < Math.max(hall.tile/2, 0.15)){
+        closePath();
+        return;
+      }
+    }
+    pushHistory();
+    var p = {id:"p"+(nextPointN++), x:pos.x, y:pos.y};
+    points.push(p);
+    currentPath.push(p.id);
+    save();
+    render();
+  }
+
+  function deletePoint(id){
+    if(!confirm("Delete this dot? Any stall using it will also be removed.")) return;
+    pushHistory();
+    points = points.filter(function(p){ return p.id !== id; });
+    stalls = stalls.filter(function(s){ return s.pointIds.indexOf(id) === -1; });
+    currentPath = currentPath.filter(function(pid){ return pid !== id; });
+    save();
+    render();
+  }
+
+  function deleteStall(id){
+    if(!confirm("Remove this stall? The dots stay in place.")) return;
+    pushHistory();
+    stalls = stalls.filter(function(s){ return s.id !== id; });
+    if(selectedStallId === id) selectedStallId = null;
+    save();
+    render();
+  }
+
+  function selectStall(id){
+    selectedStallId = id;
+    render();
+  }
+
+  function rotateSelected(dir){
+    if(!selectedStallId) return;
+    var stall = findStall(selectedStallId);
+    if(!stall) return;
+    var deg = parseFloat(selRotate.value);
+    if(!isFinite(deg)) return;
+    var rad = (dir * deg) * Math.PI / 180;
+    var pts = stall.pointIds.map(findPoint).filter(Boolean);
+    var c = centroid(stall.pointIds);
+    pushHistory();
+    pts.forEach(function(p){
+      var dx = p.x - c.x, dy = p.y - c.y;
+      var nx = c.x + dx*Math.cos(rad) - dy*Math.sin(rad);
+      var ny = c.y + dx*Math.sin(rad) + dy*Math.cos(rad);
+      p.x = Math.round(nx*100)/100; p.y = Math.round(ny*100)/100;
+    });
+    save();
+    render();
+  }
+
+  function startDrag(id, evt){
+    dragging = id;
+    var moved = false;
+    function move(e){
+      moved = true;
+      var pos = applySnap(svgPointRaw(e));
+      var p = findPoint(id);
+      if(p){ p.x = pos.x; p.y = pos.y; render(); }
+    }
+    function up(){
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+      dragging = null;
+      if(moved){ pushHistory(); save(); }
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", move, {passive:true});
+    window.addEventListener("touchend", up);
+  }
+
+  function undo(){
+    if(!history.length) return;
+    var s = history.pop();
+    applySnapshot(s);
+    currentPath = [];
+    btnUndo.disabled = history.length === 0;
+    save();
+    render();
+  }
+
+  function clearAll(){
+    if(!confirm("Clear the whole plan? This removes every dot and stall.")) return;
+    pushHistory();
+    points = []; stalls = []; nextPointN = 1; nextStallN = 1; currentPath = []; selectedStallId = null;
+    save();
+    render();
+  }
+
+  function applyHallSettings(){
+    var w = parseFloat(inputHallW.value), h = parseFloat(inputHallH.value), t = parseFloat(inputTile.value);
+    if(isFinite(w) && w>0) hall.w = w;
+    if(isFinite(h) && h>0) hall.h = h;
+    if(isFinite(t) && t>0) hall.tile = t;
+    fitView();
+    save();
+    render();
+  }
+
+  // ---- pan & zoom ----
+  var panState = null;
+  function zoomAt(factor, cx, cy){
+    var newW = view.w*factor, newH = view.h*factor;
+    var maxDim = Math.max(hall.w, hall.h) * 3;
+    if(newW < 2 || newW > maxDim) return;
+    view.x = cx - (cx-view.x)*factor;
+    view.y = cy - (cy-view.y)*factor;
+    view.w = newW; view.h = newH;
+    updateViewBox();
+  }
+  function zoomCenter(factor){
+    zoomAt(factor, view.x+view.w/2, view.y+view.h/2);
+  }
+
+  svg.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var pos = svgPointRaw(e);
+    zoomAt(e.deltaY > 0 ? 1.12 : 0.89, pos.x, pos.y);
+  }, {passive:false});
+
+  svg.addEventListener("mousedown", function(e){
+    if(mode !== "pan") return;
+    panState = { startX: e.clientX, startY: e.clientY, vx: view.x, vy: view.y };
+    svg.classList.add("panning");
+  });
+  window.addEventListener("mousemove", function(e){
+    if(!panState) return;
+    var rect = svg.getBoundingClientRect();
+    var dxPx = e.clientX - panState.startX, dyPx = e.clientY - panState.startY;
+    var scaleX = view.w / rect.width, scaleY = view.h / rect.height;
+    view.x = panState.vx - dxPx*scaleX;
+    view.y = panState.vy - dyPx*scaleY;
+    updateViewBox();
+  });
+  window.addEventListener("mouseup", function(){
+    if(panState){ panState = null; svg.classList.remove("panning"); }
+  });
+
+  // live coordinate readout
+  svg.addEventListener("mousemove", function(e){
+    var pos = svgPointRaw(e);
+    var txt = "x " + pos.x.toFixed(2) + " m, y " + pos.y.toFixed(2) + " m";
+    if(mode === "draw" && currentPath.length){
+      var last = findPoint(currentPath[currentPath.length-1]);
+      if(last){
+        var dx = pos.x-last.x, dy = pos.y-last.y;
+        var dist = Math.hypot(dx,dy);
+        var brg = (Math.atan2(dx, -dy) * 180/Math.PI + 360) % 360;
+        txt += "  ·  next segment " + dist.toFixed(2) + " m at " + brg.toFixed(0) + "°";
+      }
+    }
+    coordReadout.innerHTML = txt;
+  });
+
+  // ---- modal ----
+  function openLabelModal(cb){
+    modalRoot.innerHTML = "";
+    var backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    var modal = document.createElement("div");
+    modal.className = "modal";
+    modal.innerHTML = '<h3>Name this stall</h3>';
+    var input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "e.g. 17";
+    input.value = String(stalls.length + 1);
+    modal.appendChild(input);
+    var row = document.createElement("div");
+    row.className = "row";
+    var cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+    var saveBtn = document.createElement("button");
+    saveBtn.className = "primary";
+    saveBtn.textContent = "Save stall";
+    row.appendChild(cancelBtn); row.appendChild(saveBtn);
+    modal.appendChild(row);
+    backdrop.appendChild(modal);
+    modalRoot.appendChild(backdrop);
+    input.focus(); input.select();
+
+    function close(val){ modalRoot.innerHTML = ""; cb(val); }
+    cancelBtn.addEventListener("click", function(){ close(null); });
+    backdrop.addEventListener("click", function(e){ if(e.target===backdrop) close(null); });
+    saveBtn.addEventListener("click", function(){ close(input.value.trim()); });
+    input.addEventListener("keydown", function(e){
+      if(e.key==="Enter") close(input.value.trim());
+      if(e.key==="Escape") close(null);
+    });
+  }
+
+  // ---- persistence ----
+  function setSync(state){
+    syncEl.className = "sync" + (state==="live" ? " live" : state==="saving" ? " saving" : "");
+    syncText.textContent = state;
+  }
+
+  var saveTimer = null;
+  function save(){
+    if(!dbDoc) return;
+    setSync("saving");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      suppressRemote = true;
+      dbDoc.set({hall:hall, points:points, stalls:stalls, nextPointN:nextPointN, nextStallN:nextStallN, updatedAt:new Date().toISOString()})
+        .then(function(){ setSync("live"); setTimeout(function(){ suppressRemote = false; }, 50); })
+        .catch(function(){ setSync("offline (draft kept locally)"); suppressRemote = false; });
+    }, 250);
+  }
+
+  // Local-browser fallback store, used whenever this page is not running
+  // inside a Claude artifact frame (e.g. opened directly, or served by a
+  // plain local/static server). Mirrors the small slice of the `db`
+  // capability's DocumentReference interface that this page calls.
+  function makeLocalDoc(key){
+    return {
+      set: function(data){
+        try{ localStorage.setItem(key, JSON.stringify(data)); }catch(e){ return Promise.reject(e); }
+        return Promise.resolve();
+      },
+      onSnapshot: function(next){
+        try{
+          var raw = localStorage.getItem(key);
+          next({ exists: !!raw, data: function(){ return raw ? JSON.parse(raw) : undefined; } });
+        }catch(e){
+          next({ exists:false, data:function(){ return undefined; } });
+        }
+        return function(){};
+      }
+    };
+  }
+
+  function loadSnapshotData(d){
+    if(d.hall){ hall = d.hall; inputHallW.value = hall.w; inputHallH.value = hall.h; inputTile.value = hall.tile; }
+    points = d.points || [];
+    stalls = d.stalls || [];
+    nextPointN = d.nextPointN || (points.length+1);
+    nextStallN = d.nextStallN || (stalls.length+1);
+    fitView();
+    render();
+  }
+
+  async function boot(){
+    fitView();
+    render();
+
+    var hasClaudeRuntime = (typeof window !== "undefined") && window.claude && typeof window.claude.use === "function";
+    if(hasClaudeRuntime){
+      try{
+        var db = await window.claude.use("db");
+        if(db){
+          dbDoc = db.doc("layout/main");
+          dbDoc.onSnapshot(function(snap){
+            if(suppressRemote) return;
+            if(snap.exists) loadSnapshotData(snap.data());
+            setSync("live");
+          }, function(){ setSync("offline (draft kept locally)"); });
+          return;
+        }
+      }catch(e){ /* fall through to local storage below */ }
+    }
+
+    // Standalone / local dev: keep the drawing in this browser only.
+    dbDoc = makeLocalDoc("stallplotter-layout-main");
+    dbDoc.onSnapshot(function(snap){
+      if(snap.exists) loadSnapshotData(snap.data());
+      setSync("saved in this browser");
+    });
+  }
+
+  // ---- mode switching ----
+  function syncModeButtons(){
+    [["draw",modeDraw],["select",modeSelect],["pan",modePan],["delete",modeDelete]].forEach(function(pair){
+      pair[1].setAttribute("aria-pressed", mode === pair[0] ? "true" : "false");
+    });
+    svg.className = "mode-" + mode;
+    currentPath = [];
+    if(mode !== "select") selectedStallId = null;
+    render();
+  }
+  modeDraw.addEventListener("click", function(){ mode="draw"; syncModeButtons(); });
+  modeSelect.addEventListener("click", function(){ mode="select"; syncModeButtons(); });
+  modePan.addEventListener("click", function(){ mode="pan"; syncModeButtons(); });
+  modeDelete.addEventListener("click", function(){ mode="delete"; syncModeButtons(); });
+
+  // ---- wire up ----
+  svg.addEventListener("click", onCanvasClick);
+  btnCancel.addEventListener("click", cancelPath);
+  btnCloseShape.addEventListener("click", function(){ if(currentPath.length>=3) closePath(); });
+  btnUndo.addEventListener("click", undo);
+  btnClear.addEventListener("click", clearAll);
+  btnApplyHall.addEventListener("click", applyHallSettings);
+  snapSelect.addEventListener("change", function(){ snapMode = snapSelect.value; });
+  btnSegAdd.addEventListener("click", addSegmentPoint);
+  segDist.addEventListener("keydown", function(e){ if(e.key==="Enter") addSegmentPoint(); });
+  segAngle.addEventListener("keydown", function(e){ if(e.key==="Enter") addSegmentPoint(); });
+  btnRotateCw.addEventListener("click", function(){ rotateSelected(1); });
+  btnRotateCcw.addEventListener("click", function(){ rotateSelected(-1); });
+  btnSelDelete.addEventListener("click", function(){ if(selectedStallId) deleteStall(selectedStallId); });
+  selClose.addEventListener("click", function(){ selectStall(null); });
+  btnZoomIn.addEventListener("click", function(){ zoomCenter(0.8); });
+  btnZoomOut.addEventListener("click", function(){ zoomCenter(1.25); });
+  btnZoomFit.addEventListener("click", fitView);
+
+  function setViewRotation(deg){
+    viewRotation = ((deg % 360) + 360) % 360;
+    try{ localStorage.setItem("stallplotter-view-rotation", String(viewRotation)); }catch(e){}
+    render();
+  }
+  btnRotateViewCw.addEventListener("click", function(){ setViewRotation(viewRotation + 15); });
+  btnRotateViewCcw.addEventListener("click", function(){ setViewRotation(viewRotation - 15); });
+  btnRotateViewReset.addEventListener("click", function(){ setViewRotation(0); });
+
+  window.addEventListener("keydown", function(e){
+    if(e.key === "Escape") cancelPath();
+  });
+
+  snapSelect.value = snapMode;
+  syncModeButtons();
+  boot();
+})();
+</script>
