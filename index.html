@@ -227,9 +227,9 @@
   }
   .zoom-controls button{padding:6px 10px;background:var(--surface);}
 
-  .boundary-rect{fill:none;stroke:var(--boundary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:none;}
+  .boundary-rect{fill:none;stroke:var(--line-strong);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:6 4;}
   .axis-label{font-family:var(--font-mono);font-size:.34px;fill:var(--ink-soft);}
-  .dim-label{font-family:var(--font-mono);font-size:.4px;fill:var(--boundary);font-weight:600;}
+  .dim-label{font-family:var(--font-mono);font-size:.4px;fill:var(--ink-soft);font-weight:600;}
 
   .pt{fill:var(--surface);stroke:var(--ink);stroke-width:2;vector-effect:non-scaling-stroke;cursor:pointer;}
   .pt:hover{stroke:var(--accent);}
@@ -251,6 +251,25 @@
     user-select:none;
   }
 
+  .wall-hit{fill:none;stroke:transparent;stroke-width:14;vector-effect:non-scaling-stroke;cursor:pointer;}
+  .wall-line{fill:none;stroke:var(--boundary);stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
+  .wall-line.selected{stroke:var(--accent);}
+  .wall-line.delete-mode:hover{stroke:var(--bad);}
+  .wall-len-label{font-family:var(--font-mono);font-size:.28px;fill:var(--ink-soft);pointer-events:none;user-select:none;}
+
+  .column-circle{fill:var(--surface-2);stroke:var(--boundary);stroke-width:.045;cursor:pointer;}
+  .column-circle:hover{stroke:var(--accent);}
+  .column-circle.selected{stroke:var(--accent);stroke-width:.07;}
+  .column-circle.delete-mode:hover{stroke:var(--bad);fill:var(--bad);fill-opacity:.3;}
+  .column-cross{stroke:var(--boundary);stroke-width:.02;pointer-events:none;}
+
+  .door-frame{stroke:var(--canvas-bg);}
+  .door-leaf{stroke:var(--boundary);stroke-width:.035;fill:none;}
+  .door-arc{stroke:var(--boundary);stroke-width:.02;fill:none;stroke-dasharray:.07 .06;}
+  .door-hit{fill:transparent;stroke:transparent;cursor:pointer;}
+  .door-group.selected .door-leaf,.door-group.selected .door-arc{stroke:var(--accent);}
+  .door-group.delete-mode:hover .door-leaf,.door-group.delete-mode:hover .door-arc{stroke:var(--bad);}
+
   .side{
     background:var(--surface);
     border:1px solid var(--line);
@@ -271,11 +290,12 @@
   .side h2 span{font-family:var(--font-mono);color:var(--ink-soft);font-weight:400;font-size:.72rem;}
   .total-area{
     font-family:var(--font-mono);
-    font-size:.78rem;
+    font-size:.76rem;
     color:var(--ink-soft);
     background:var(--surface-2);
     border-radius:7px;
     padding:6px 9px;
+    line-height:1.6;
   }
   .total-area b{color:var(--ink);}
   .stall-list{
@@ -336,13 +356,13 @@
   <header>
     <div>
       <h1>Stall Layout Plotter</h1>
-      <p>True-to-scale site plan: 1 drawing unit = 1 metre. Place dots, join them to trace each stall, then it's ready for area-based pricing.</p>
+      <p>True-to-scale site plan: 1 drawing unit = 1 metre. Trace stalls, draw the hall's actual walls, and place columns and doors — measured for pricing and construction reference.</p>
     </div>
     <div class="sync" id="sync-indicator"><span class="led"></span><span id="sync-text">connecting</span></div>
   </header>
 
   <div class="howto">
-    <b>Add a dot</b> — click empty floor in Draw mode. <b>Trace a stall</b> — click dots in order, then click the first dot again (or "Close shape") to save it. <b>Type an exact segment</b> — enter distance + bearing below while tracing. <b>Edit a stall</b> — switch to Select, click it, rotate or delete. <b>Move around</b> — Pan mode to drag the view, scroll or +/− to zoom.
+    <b>Pick what to draw</b> — Stall / Wall / Column / Door, next to the mode buttons. <b>Trace a stall</b> — click dots in order, then click the first dot again (or "Close shape") to save it. <b>Trace hall walls</b> — click points along each wall; "Finish wall" ends an open run, or click the first point again to close a loop into a room outline. <b>Drop a column</b> — click where it stands; it's drawn round and to scale. <b>Add a door</b> — click a point on a wall; it snaps to that wall's angle and draws as an open-door swing. <b>Type an exact segment</b> — enter distance + bearing below while tracing a stall or wall. <b>Edit anything</b> — switch to Select, click it to rotate, resize, or delete. <b>Move around</b> — Pan mode to drag the view, scroll or +/− to zoom.
   </div>
 
   <div class="panelrow">
@@ -359,6 +379,12 @@
       <button id="mode-pan" class="toggle" aria-pressed="false">Pan</button>
       <button id="mode-delete" class="toggle" aria-pressed="false">Delete</button>
     </div>
+    <div class="mode-group" id="draw-kind-group">
+      <button id="kind-stall" class="toggle" aria-pressed="true">Stall</button>
+      <button id="kind-wall" class="toggle" aria-pressed="false">Wall</button>
+      <button id="kind-column" class="toggle" aria-pressed="false">Column</button>
+      <button id="kind-door" class="toggle" aria-pressed="false">Door</button>
+    </div>
     <select id="snap-mode">
       <option value="tile">Snap: tile (0.6 m)</option>
       <option value="meter">Snap: metre</option>
@@ -370,6 +396,12 @@
     <button id="btn-clear" class="danger">Clear all</button>
   </div>
 
+  <div class="panelrow" id="draw-options">
+    <div class="field" id="wall-thickness-field" hidden><label>Wall thickness</label><input type="number" id="wall-thickness" step="0.05" min="0.05" value="0.15"><span class="unit">m</span></div>
+    <div class="field" id="column-d-field" hidden><label>Column ⌀</label><input type="number" id="column-d" step="0.05" min="0.1" value="0.4"><span class="unit">m</span></div>
+    <div class="field" id="door-w-field" hidden><label>Door width</label><input type="number" id="door-w" step="0.05" min="0.3" value="0.9"><span class="unit">m</span></div>
+  </div>
+
   <div class="segrow" id="seg-panel" hidden>
     <strong>Next point from last dot:</strong>
     <div class="field"><label>Distance</label><input type="number" id="seg-dist" step="0.1" min="0"><span class="unit">m</span></div>
@@ -379,12 +411,16 @@
 
   <div class="selrow" id="sel-panel" hidden>
     <strong id="sel-title">Stall</strong>
-    <span class="stat">Area <b id="sel-area">—</b> m²</span>
-    <span class="stat">Bounds <b id="sel-bbox">—</b> m</span>
-    <div class="field"><label>Rotate</label><input type="number" id="sel-rotate" step="5" value="15"><span class="unit">°</span></div>
+    <span class="stat" id="sel-stat-area">Area <b id="sel-area">—</b> m²</span>
+    <span class="stat" id="sel-stat-bbox">Bounds <b id="sel-bbox">—</b> m</span>
+    <span class="stat" id="sel-stat-length" hidden>Length <b id="sel-length">—</b> m</span>
+    <div class="field" id="sel-thickness-field" hidden><label>Thickness</label><input type="number" id="sel-thickness" step="0.05" min="0.05"><span class="unit">m</span></div>
+    <div class="field" id="sel-diameter-field" hidden><label>⌀</label><input type="number" id="sel-diameter" step="0.05" min="0.1"><span class="unit">m</span></div>
+    <div class="field" id="sel-doorwidth-field" hidden><label>Width</label><input type="number" id="sel-doorwidth" step="0.05" min="0.3"><span class="unit">m</span></div>
+    <div class="field" id="sel-rotate-field"><label>Rotate</label><input type="number" id="sel-rotate" step="5" value="15"><span class="unit">°</span></div>
     <button id="btn-rotate-cw">↻ Apply</button>
     <button id="btn-rotate-ccw">↺ Apply</button>
-    <button id="btn-sel-delete" class="danger">Delete stall</button>
+    <button id="btn-sel-delete" class="danger">Delete</button>
     <button class="close-x" id="sel-close">✕</button>
   </div>
 
@@ -404,7 +440,10 @@
     </div>
     <div class="side">
       <h2>Stalls <span id="stall-count">0</span></h2>
-      <div class="total-area">Plotted area: <b id="total-area">0.0</b> m²</div>
+      <div class="total-area">
+        Plotted area: <b id="total-area">0.0</b> m²<br>
+        Columns <b id="column-count">0</b> · Doors <b id="door-count">0</b> · Walls <b id="wall-count">0</b>
+      </div>
       <ul class="stall-list" id="stall-list"></ul>
       <div class="empty" id="stall-empty">No stalls traced yet.</div>
     </div>
@@ -432,6 +471,19 @@
   var modeDelete = document.getElementById("mode-delete");
   var snapSelect = document.getElementById("snap-mode");
 
+  var drawKindGroup = document.getElementById("draw-kind-group");
+  var kindStall = document.getElementById("kind-stall");
+  var kindWall = document.getElementById("kind-wall");
+  var kindColumn = document.getElementById("kind-column");
+  var kindDoor = document.getElementById("kind-door");
+  var drawOptionsRow = document.getElementById("draw-options");
+  var wallThicknessField = document.getElementById("wall-thickness-field");
+  var inputWallThickness = document.getElementById("wall-thickness");
+  var columnDField = document.getElementById("column-d-field");
+  var inputColumnD = document.getElementById("column-d");
+  var doorWField = document.getElementById("door-w-field");
+  var inputDoorW = document.getElementById("door-w");
+
   var btnCancel = document.getElementById("btn-cancel");
   var btnCloseShape = document.getElementById("btn-close-shape");
   var btnUndo = document.getElementById("btn-undo");
@@ -444,8 +496,19 @@
 
   var selPanel = document.getElementById("sel-panel");
   var selTitle = document.getElementById("sel-title");
+  var selStatArea = document.getElementById("sel-stat-area");
   var selArea = document.getElementById("sel-area");
+  var selStatBbox = document.getElementById("sel-stat-bbox");
   var selBbox = document.getElementById("sel-bbox");
+  var selStatLength = document.getElementById("sel-stat-length");
+  var selLength = document.getElementById("sel-length");
+  var selThicknessField = document.getElementById("sel-thickness-field");
+  var selThickness = document.getElementById("sel-thickness");
+  var selDiameterField = document.getElementById("sel-diameter-field");
+  var selDiameter = document.getElementById("sel-diameter");
+  var selDoorwidthField = document.getElementById("sel-doorwidth-field");
+  var selDoorwidth = document.getElementById("sel-doorwidth");
+  var selRotateField = document.getElementById("sel-rotate-field");
   var selRotate = document.getElementById("sel-rotate");
   var btnRotateCw = document.getElementById("btn-rotate-cw");
   var btnRotateCcw = document.getElementById("btn-rotate-ccw");
@@ -463,20 +526,30 @@
   var stallCountEl = document.getElementById("stall-count");
   var stallEmptyEl = document.getElementById("stall-empty");
   var totalAreaEl = document.getElementById("total-area");
+  var columnCountEl = document.getElementById("column-count");
+  var doorCountEl = document.getElementById("door-count");
+  var wallCountEl = document.getElementById("wall-count");
   var modalRoot = document.getElementById("modal-root");
 
   // ---- model ----
   var hall = { w: 30.8, h: 20.5, tile: 0.6 };
   var points = [];   // {id, x, y} meters
   var stalls = [];   // {id, pointIds:[...], label}
+  var walls = [];    // {id, pointIds:[...], closed, thickness, label}
+  var columns = [];  // {id, x, y, d, label}
+  var doors = [];    // {id, x, y, width, angle(deg), thickness, label}
   var nextPointN = 1;
   var nextStallN = 1;
+  var nextWallN = 1;
+  var nextColumnN = 1;
+  var nextDoorN = 1;
 
   // local-only UI state
   var mode = "draw"; // draw | select | pan | delete
+  var drawKind = "stall"; // stall | wall | column | door
   var snapMode = "tile";
   var currentPath = [];
-  var selectedStallId = null;
+  var selection = null; // {type:'stall'|'wall'|'column'|'door', id}
   var dragging = null;
   var history = [];
   var view = {};
@@ -498,7 +571,8 @@
   }
 
   function snapshot(){
-    return JSON.stringify({points: points, stalls: stalls, nextPointN: nextPointN, nextStallN: nextStallN});
+    return JSON.stringify({points:points, stalls:stalls, walls:walls, columns:columns, doors:doors,
+      nextPointN:nextPointN, nextStallN:nextStallN, nextWallN:nextWallN, nextColumnN:nextColumnN, nextDoorN:nextDoorN});
   }
   function pushHistory(){
     history.push(snapshot());
@@ -507,11 +581,17 @@
   }
   function applySnapshot(s){
     var d = JSON.parse(s);
-    points = d.points; stalls = d.stalls; nextPointN = d.nextPointN; nextStallN = d.nextStallN;
+    points = d.points; stalls = d.stalls;
+    walls = d.walls || []; columns = d.columns || []; doors = d.doors || [];
+    nextPointN = d.nextPointN; nextStallN = d.nextStallN;
+    nextWallN = d.nextWallN || 1; nextColumnN = d.nextColumnN || 1; nextDoorN = d.nextDoorN || 1;
   }
 
   function findPoint(id){ for(var i=0;i<points.length;i++) if(points[i].id===id) return points[i]; return null; }
   function findStall(id){ for(var i=0;i<stalls.length;i++) if(stalls[i].id===id) return stalls[i]; return null; }
+  function findWall(id){ for(var i=0;i<walls.length;i++) if(walls[i].id===id) return walls[i]; return null; }
+  function findColumn(id){ for(var i=0;i<columns.length;i++) if(columns[i].id===id) return columns[i]; return null; }
+  function findDoor(id){ for(var i=0;i<doors.length;i++) if(doors[i].id===id) return doors[i]; return null; }
   function centroid(ids){
     var xs=0, ys=0, n=0;
     ids.forEach(function(id){ var p=findPoint(id); if(p){xs+=p.x; ys+=p.y; n++;} });
@@ -528,6 +608,33 @@
   function bbox(pts){
     var xs = pts.map(function(p){return p.x;}), ys = pts.map(function(p){return p.y;});
     return { w: Math.max.apply(null,xs)-Math.min.apply(null,xs), h: Math.max.apply(null,ys)-Math.min.apply(null,ys) };
+  }
+  function pointToSegmentDist(p, a, b){
+    var dx=b.x-a.x, dy=b.y-a.y;
+    var len2 = dx*dx+dy*dy;
+    if(len2 < 1e-9) return Math.hypot(p.x-a.x, p.y-a.y);
+    var t = ((p.x-a.x)*dx + (p.y-a.y)*dy)/len2;
+    t = Math.max(0, Math.min(1,t));
+    var cx = a.x+t*dx, cy = a.y+t*dy;
+    return Math.hypot(p.x-cx, p.y-cy);
+  }
+  function nearestWall(pos){
+    var best = null, bestDist = 0.9;
+    walls.forEach(function(wall){
+      var pts = wall.pointIds.map(findPoint).filter(Boolean);
+      var n = pts.length;
+      if(n < 2) return;
+      var segCount = wall.closed ? n : n-1;
+      for(var i=0;i<segCount;i++){
+        var a = pts[i], b = pts[(i+1)%n];
+        var d = pointToSegmentDist(pos, a, b);
+        if(d < bestDist){
+          bestDist = d;
+          best = { angleDeg: Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI, thickness: wall.thickness };
+        }
+      }
+    });
+    return best;
   }
 
   function snapVal(v, step){ return Math.round(v/step)*step; }
@@ -575,7 +682,7 @@
     }
     sceneG.appendChild(gridG);
 
-    // boundary + dimension labels
+    // boundary reference frame + dimension labels
     var boundary = document.createElementNS(svg.namespaceURI,"rect");
     boundary.setAttribute("x",0); boundary.setAttribute("y",0);
     boundary.setAttribute("width",hall.w); boundary.setAttribute("height",hall.h);
@@ -611,6 +718,118 @@
       sceneG.appendChild(t2);
     }
 
+    // walls (hall structure)
+    walls.forEach(function(wall){
+      var pts = wall.pointIds.map(findPoint).filter(Boolean);
+      if(pts.length < 2) return;
+      var d = "M " + pts.map(function(p){return p.x+","+p.y;}).join(" L ");
+      if(wall.closed) d += " Z";
+
+      var hit = document.createElementNS(svg.namespaceURI,"path");
+      hit.setAttribute("d", d);
+      hit.setAttribute("class","wall-hit");
+      hit.addEventListener("click", function(e){
+        if(mode === "delete"){ e.stopPropagation(); deleteWallEl(wall.id); }
+        else if(mode === "select"){ e.stopPropagation(); select({type:"wall", id:wall.id}); }
+      });
+      sceneG.appendChild(hit);
+
+      var line = document.createElementNS(svg.namespaceURI,"path");
+      line.setAttribute("d", d);
+      var wcls = "wall-line";
+      if(mode === "delete") wcls += " delete-mode";
+      if(selection && selection.type==="wall" && selection.id===wall.id) wcls += " selected";
+      line.setAttribute("class", wcls);
+      line.setAttribute("stroke-width", wall.thickness);
+      sceneG.appendChild(line);
+
+      var segCount = wall.closed ? pts.length : pts.length-1;
+      for(var i=0;i<segCount;i++){
+        var a = pts[i], b = pts[(i+1)%pts.length];
+        var segLen = Math.hypot(b.x-a.x, b.y-a.y);
+        if(segLen < 0.3) continue;
+        var mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+        var lbl = document.createElementNS(svg.namespaceURI,"text");
+        lbl.setAttribute("x", mx); lbl.setAttribute("y", my - wall.thickness/2 - 0.08);
+        lbl.setAttribute("class","wall-len-label");
+        lbl.setAttribute("text-anchor","middle");
+        lbl.setAttribute("transform", "rotate(" + (-viewRotation) + " " + mx + " " + my + ")");
+        lbl.textContent = segLen.toFixed(1) + "m";
+        sceneG.appendChild(lbl);
+      }
+    });
+
+    // doors
+    doors.forEach(function(door){
+      var rad = door.angle * Math.PI/180;
+      var dir = { x: Math.cos(rad), y: Math.sin(rad) };
+      var perp = { x: -dir.y, y: dir.x };
+      var p1 = { x: door.x, y: door.y };
+      var p2 = { x: p1.x + dir.x*door.width, y: p1.y + dir.y*door.width };
+      var leafEnd = { x: p1.x + perp.x*door.width, y: p1.y + perp.y*door.width };
+
+      var g = document.createElementNS(svg.namespaceURI,"g");
+      var isSel = selection && selection.type==="door" && selection.id===door.id;
+      g.setAttribute("class", "door-group" + (isSel?" selected":"") + (mode==="delete"?" delete-mode":""));
+
+      var mask = document.createElementNS(svg.namespaceURI,"line");
+      mask.setAttribute("x1",p1.x); mask.setAttribute("y1",p1.y);
+      mask.setAttribute("x2",p2.x); mask.setAttribute("y2",p2.y);
+      mask.setAttribute("class","door-frame");
+      mask.setAttribute("stroke-width", Math.max(door.thickness*1.4, 0.16));
+      g.appendChild(mask);
+
+      var leaf = document.createElementNS(svg.namespaceURI,"line");
+      leaf.setAttribute("x1",p1.x); leaf.setAttribute("y1",p1.y);
+      leaf.setAttribute("x2",leafEnd.x); leaf.setAttribute("y2",leafEnd.y);
+      leaf.setAttribute("class","door-leaf");
+      g.appendChild(leaf);
+
+      var arc = document.createElementNS(svg.namespaceURI,"path");
+      arc.setAttribute("d", "M " + leafEnd.x + "," + leafEnd.y + " A " + door.width + "," + door.width + " 0 0 1 " + p2.x + "," + p2.y);
+      arc.setAttribute("class","door-arc");
+      g.appendChild(arc);
+
+      var hit = document.createElementNS(svg.namespaceURI,"circle");
+      hit.setAttribute("cx", (p1.x+p2.x)/2); hit.setAttribute("cy", (p1.y+p2.y)/2);
+      hit.setAttribute("r", Math.max(door.width*0.6, 0.3));
+      hit.setAttribute("class","door-hit");
+      hit.addEventListener("click", function(e){
+        if(mode === "delete"){ e.stopPropagation(); deleteDoorEl(door.id); }
+        else if(mode === "select"){ e.stopPropagation(); select({type:"door", id:door.id}); }
+      });
+      g.appendChild(hit);
+
+      sceneG.appendChild(g);
+    });
+
+    // columns
+    columns.forEach(function(col){
+      var isSel = selection && selection.type==="column" && selection.id===col.id;
+      var r = col.d/2;
+      var circle = document.createElementNS(svg.namespaceURI,"circle");
+      circle.setAttribute("cx",col.x); circle.setAttribute("cy",col.y); circle.setAttribute("r", r);
+      var ccls = "column-circle" + (isSel?" selected":"") + (mode==="delete"?" delete-mode":"");
+      circle.setAttribute("class", ccls);
+      circle.addEventListener("click", function(e){
+        if(mode === "delete"){ e.stopPropagation(); deleteColumnEl(col.id); }
+        else if(mode === "select"){ e.stopPropagation(); select({type:"column", id:col.id}); }
+      });
+      sceneG.appendChild(circle);
+
+      var hr = r*0.55;
+      var cross1 = document.createElementNS(svg.namespaceURI,"line");
+      cross1.setAttribute("x1",col.x-hr); cross1.setAttribute("y1",col.y-hr);
+      cross1.setAttribute("x2",col.x+hr); cross1.setAttribute("y2",col.y+hr);
+      cross1.setAttribute("class","column-cross");
+      sceneG.appendChild(cross1);
+      var cross2 = document.createElementNS(svg.namespaceURI,"line");
+      cross2.setAttribute("x1",col.x-hr); cross2.setAttribute("y1",col.y+hr);
+      cross2.setAttribute("x2",col.x+hr); cross2.setAttribute("y2",col.y-hr);
+      cross2.setAttribute("class","column-cross");
+      sceneG.appendChild(cross2);
+    });
+
     // stalls
     stalls.forEach(function(stall){
       var pts = stall.pointIds.map(findPoint).filter(Boolean);
@@ -619,12 +838,11 @@
       poly.setAttribute("points", pts.map(function(p){return p.x+","+p.y;}).join(" "));
       var cls = "stall-poly";
       if(mode === "delete") cls += " delete-mode";
-      if(selectedStallId === stall.id) cls += " selected";
+      if(selection && selection.type==="stall" && selection.id===stall.id) cls += " selected";
       poly.setAttribute("class", cls);
       poly.addEventListener("click", function(e){
-        e.stopPropagation();
-        if(mode === "delete") deleteStall(stall.id);
-        else if(mode === "select") selectStall(stall.id);
+        if(mode === "delete"){ e.stopPropagation(); deleteStall(stall.id); }
+        else if(mode === "select"){ e.stopPropagation(); select({type:"stall", id:stall.id}); }
       });
       sceneG.appendChild(poly);
 
@@ -663,14 +881,23 @@
     });
 
     btnCancel.disabled = currentPath.length === 0;
-    btnCloseShape.disabled = currentPath.length < 3;
-    segPanel.hidden = !(mode==="draw" && currentPath.length >= 1);
+    if(drawKind === "wall"){
+      btnCloseShape.textContent = "Finish wall";
+      btnCloseShape.disabled = currentPath.length < 2;
+    } else {
+      btnCloseShape.textContent = "Close shape";
+      btnCloseShape.disabled = currentPath.length < 3;
+    }
+    segPanel.hidden = !((drawKind==="stall"||drawKind==="wall") && mode==="draw" && currentPath.length >= 1);
 
     renderSelection();
 
     // side list
     stallCountEl.textContent = stalls.length;
     stallEmptyEl.style.display = stalls.length ? "none" : "block";
+    columnCountEl.textContent = columns.length;
+    doorCountEl.textContent = doors.length;
+    wallCountEl.textContent = walls.length;
     var total = 0;
     stallListEl.innerHTML = "";
     stalls.slice().sort(function(a,b){return (parseFloat(a.label)||0)-(parseFloat(b.label)||0);}).forEach(function(stall){
@@ -687,32 +914,96 @@
       var dims = document.createElement("div"); dims.className = "dims";
       dims.textContent = box.w.toFixed(1) + " × " + box.h.toFixed(1) + " m  ·  " + area.toFixed(1) + " m²";
       li.appendChild(top); li.appendChild(dims);
-      li.addEventListener("click", function(){ mode="select"; syncModeButtons(); selectStall(stall.id); });
+      li.addEventListener("click", function(){ mode="select"; syncModeButtons(); select({type:"stall", id:stall.id}); });
       stallListEl.appendChild(li);
     });
     totalAreaEl.textContent = total.toFixed(1);
   }
 
   function renderSelection(){
-    if(mode !== "select" || !selectedStallId || !findStall(selectedStallId)){
+    selStatArea.hidden = true;
+    selStatBbox.hidden = true;
+    selStatLength.hidden = true;
+    selThicknessField.hidden = true;
+    selDiameterField.hidden = true;
+    selDoorwidthField.hidden = true;
+    selRotateField.hidden = true;
+    btnRotateCw.hidden = true;
+    btnRotateCcw.hidden = true;
+
+    if(mode !== "select" || !selection){
       selPanel.hidden = true;
       return;
     }
-    var stall = findStall(selectedStallId);
-    var pts = stall.pointIds.map(findPoint).filter(Boolean);
-    selPanel.hidden = false;
-    selTitle.textContent = "Stall #" + stall.label;
-    selArea.textContent = pts.length>=3 ? polyArea(pts).toFixed(1) : "—";
-    var box = pts.length ? bbox(pts) : {w:0,h:0};
-    selBbox.textContent = box.w.toFixed(1) + " × " + box.h.toFixed(1);
+
+    if(selection.type === "stall"){
+      var stall = findStall(selection.id);
+      if(!stall){ selPanel.hidden = true; return; }
+      selPanel.hidden = false;
+      var pts = stall.pointIds.map(findPoint).filter(Boolean);
+      selTitle.textContent = "Stall #" + stall.label;
+      selStatArea.hidden = false; selArea.textContent = pts.length>=3 ? polyArea(pts).toFixed(1) : "—";
+      selStatBbox.hidden = false; var box = pts.length ? bbox(pts) : {w:0,h:0};
+      selBbox.textContent = box.w.toFixed(1) + " × " + box.h.toFixed(1);
+      selRotateField.hidden = false; btnRotateCw.hidden = false; btnRotateCcw.hidden = false;
+    } else if(selection.type === "wall"){
+      var wall = findWall(selection.id);
+      if(!wall){ selPanel.hidden = true; return; }
+      selPanel.hidden = false;
+      var wpts = wall.pointIds.map(findPoint).filter(Boolean);
+      selTitle.textContent = "Wall #" + wall.label + (wall.closed ? " (closed)" : "");
+      var len = 0;
+      for(var i=0;i<wpts.length-1;i++) len += Math.hypot(wpts[i+1].x-wpts[i].x, wpts[i+1].y-wpts[i].y);
+      if(wall.closed && wpts.length>1) len += Math.hypot(wpts[0].x-wpts[wpts.length-1].x, wpts[0].y-wpts[wpts.length-1].y);
+      selStatLength.hidden = false; selLength.textContent = len.toFixed(1);
+      selThicknessField.hidden = false; selThickness.value = wall.thickness;
+      selRotateField.hidden = false; btnRotateCw.hidden = false; btnRotateCcw.hidden = false;
+    } else if(selection.type === "column"){
+      var col = findColumn(selection.id);
+      if(!col){ selPanel.hidden = true; return; }
+      selPanel.hidden = false;
+      selTitle.textContent = "Column #" + col.label;
+      selDiameterField.hidden = false; selDiameter.value = col.d;
+    } else if(selection.type === "door"){
+      var door = findDoor(selection.id);
+      if(!door){ selPanel.hidden = true; return; }
+      selPanel.hidden = false;
+      selTitle.textContent = "Door #" + door.label;
+      selDoorwidthField.hidden = false; selDoorwidth.value = door.width;
+      selRotateField.hidden = false; btnRotateCw.hidden = false; btnRotateCcw.hidden = false;
+    }
   }
 
   // ---- interactions ----
+  function select(sel){ selection = sel; render(); }
+
+  function placeColumn(pos){
+    pushHistory();
+    var d = parseFloat(inputColumnD.value); if(!isFinite(d) || d<=0) d = 0.4;
+    var n = nextColumnN++;
+    columns.push({id:"c"+n, x:pos.x, y:pos.y, d:d, label:String(n)});
+    save();
+    render();
+  }
+  function placeDoor(pos){
+    pushHistory();
+    var w = parseFloat(inputDoorW.value); if(!isFinite(w) || w<=0) w = 0.9;
+    var nw = nearestWall(pos);
+    var angle = nw ? nw.angleDeg : 0;
+    var thickness = nw ? nw.thickness : 0.12;
+    var n = nextDoorN++;
+    doors.push({id:"d"+n, x:pos.x, y:pos.y, width:w, angle:angle, thickness:thickness, label:String(n)});
+    save();
+    render();
+  }
+
   function onCanvasClick(evt){
     if(dragging) return;
-    if(mode === "select"){ selectStall(null); return; }
+    if(mode === "select"){ select(null); return; }
     if(mode !== "draw") return;
     var pos = applySnap(svgPointRaw(evt));
+    if(drawKind === "column"){ placeColumn(pos); return; }
+    if(drawKind === "door"){ placeDoor(pos); return; }
     pushHistory();
     var p = {id:"p"+(nextPointN++), x:pos.x, y:pos.y};
     points.push(p);
@@ -725,8 +1016,11 @@
     if(mode === "delete"){ deletePoint(id); return; }
     if(mode === "select"){ return; }
     if(mode !== "draw") return;
+    if(drawKind === "column"){ var pc = findPoint(id); if(pc) placeColumn({x:pc.x, y:pc.y}); return; }
+    if(drawKind === "door"){ var pd = findPoint(id); if(pd) placeDoor({x:pd.x, y:pd.y}); return; }
     if(currentPath.length && currentPath[0] === id && currentPath.length >= 3){
-      closePath();
+      if(drawKind === "wall") closeWallChain(true);
+      else closePath();
       return;
     }
     if(currentPath.indexOf(id) === -1){
@@ -747,6 +1041,18 @@
     });
   }
 
+  function closeWallChain(closed){
+    var ids = currentPath.slice();
+    currentPath = [];
+    if(ids.length < 2){ render(); return; }
+    pushHistory();
+    var t = parseFloat(inputWallThickness.value); if(!isFinite(t) || t<=0) t = 0.15;
+    var n = nextWallN++;
+    walls.push({id:"w"+n, pointIds:ids, closed:!!closed, thickness:t, label:String(n)});
+    save();
+    render();
+  }
+
   function cancelPath(){ currentPath = []; render(); }
 
   function addSegmentPoint(){
@@ -763,7 +1069,8 @@
     if(currentPath.length >= 3){
       var start = findPoint(currentPath[0]);
       if(start && Math.hypot(start.x-pos.x, start.y-pos.y) < Math.max(hall.tile/2, 0.15)){
-        closePath();
+        if(drawKind === "wall") closeWallChain(true);
+        else closePath();
         return;
       }
     }
@@ -776,10 +1083,11 @@
   }
 
   function deletePoint(id){
-    if(!confirm("Delete this dot? Any stall using it will also be removed.")) return;
+    if(!confirm("Delete this dot? Any stall or wall using it will also be removed.")) return;
     pushHistory();
     points = points.filter(function(p){ return p.id !== id; });
     stalls = stalls.filter(function(s){ return s.pointIds.indexOf(id) === -1; });
+    walls = walls.filter(function(w){ return w.pointIds.indexOf(id) === -1; });
     currentPath = currentPath.filter(function(pid){ return pid !== id; });
     save();
     render();
@@ -789,34 +1097,69 @@
     if(!confirm("Remove this stall? The dots stay in place.")) return;
     pushHistory();
     stalls = stalls.filter(function(s){ return s.id !== id; });
-    if(selectedStallId === id) selectedStallId = null;
+    if(selection && selection.type==="stall" && selection.id===id) selection = null;
     save();
     render();
   }
-
-  function selectStall(id){
-    selectedStallId = id;
+  function deleteWallEl(id){
+    if(!confirm("Remove this wall? The dots stay in place.")) return;
+    pushHistory();
+    walls = walls.filter(function(w){ return w.id !== id; });
+    if(selection && selection.type==="wall" && selection.id===id) selection = null;
+    save();
     render();
+  }
+  function deleteColumnEl(id){
+    if(!confirm("Remove this column?")) return;
+    pushHistory();
+    columns = columns.filter(function(c){ return c.id !== id; });
+    if(selection && selection.type==="column" && selection.id===id) selection = null;
+    save();
+    render();
+  }
+  function deleteDoorEl(id){
+    if(!confirm("Remove this door?")) return;
+    pushHistory();
+    doors = doors.filter(function(d){ return d.id !== id; });
+    if(selection && selection.type==="door" && selection.id===id) selection = null;
+    save();
+    render();
+  }
+  function deleteSelected(){
+    if(!selection) return;
+    if(selection.type === "stall") deleteStall(selection.id);
+    else if(selection.type === "wall") deleteWallEl(selection.id);
+    else if(selection.type === "column") deleteColumnEl(selection.id);
+    else if(selection.type === "door") deleteDoorEl(selection.id);
   }
 
   function rotateSelected(dir){
-    if(!selectedStallId) return;
-    var stall = findStall(selectedStallId);
-    if(!stall) return;
+    if(!selection) return;
     var deg = parseFloat(selRotate.value);
     if(!isFinite(deg)) return;
-    var rad = (dir * deg) * Math.PI / 180;
-    var pts = stall.pointIds.map(findPoint).filter(Boolean);
-    var c = centroid(stall.pointIds);
-    pushHistory();
-    pts.forEach(function(p){
-      var dx = p.x - c.x, dy = p.y - c.y;
-      var nx = c.x + dx*Math.cos(rad) - dy*Math.sin(rad);
-      var ny = c.y + dx*Math.sin(rad) + dy*Math.cos(rad);
-      p.x = Math.round(nx*100)/100; p.y = Math.round(ny*100)/100;
-    });
-    save();
-    render();
+    if(selection.type === "stall" || selection.type === "wall"){
+      var el = selection.type==="stall" ? findStall(selection.id) : findWall(selection.id);
+      if(!el) return;
+      var rad = (dir * deg) * Math.PI / 180;
+      var pts = el.pointIds.map(findPoint).filter(Boolean);
+      var c = centroid(el.pointIds);
+      pushHistory();
+      pts.forEach(function(p){
+        var dx = p.x - c.x, dy = p.y - c.y;
+        var nx = c.x + dx*Math.cos(rad) - dy*Math.sin(rad);
+        var ny = c.y + dx*Math.sin(rad) + dy*Math.cos(rad);
+        p.x = Math.round(nx*100)/100; p.y = Math.round(ny*100)/100;
+      });
+      save();
+      render();
+    } else if(selection.type === "door"){
+      var door = findDoor(selection.id);
+      if(!door) return;
+      pushHistory();
+      door.angle = (door.angle + dir*deg + 360) % 360;
+      save();
+      render();
+    }
   }
 
   function startDrag(id, evt){
@@ -853,9 +1196,11 @@
   }
 
   function clearAll(){
-    if(!confirm("Clear the whole plan? This removes every dot and stall.")) return;
+    if(!confirm("Clear the whole plan? This removes every dot, stall, wall, column and door.")) return;
     pushHistory();
-    points = []; stalls = []; nextPointN = 1; nextStallN = 1; currentPath = []; selectedStallId = null;
+    points = []; stalls = []; walls = []; columns = []; doors = [];
+    nextPointN = 1; nextStallN = 1; nextWallN = 1; nextColumnN = 1; nextDoorN = 1;
+    currentPath = []; selection = null;
     save();
     render();
   }
@@ -913,7 +1258,7 @@
   svg.addEventListener("mousemove", function(e){
     var pos = svgPointRaw(e);
     var txt = "x " + pos.x.toFixed(2) + " m, y " + pos.y.toFixed(2) + " m";
-    if(mode === "draw" && currentPath.length){
+    if(mode === "draw" && (drawKind==="stall"||drawKind==="wall") && currentPath.length){
       var last = findPoint(currentPath[currentPath.length-1]);
       if(last){
         var dx = pos.x-last.x, dy = pos.y-last.y;
@@ -974,7 +1319,9 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
       suppressRemote = true;
-      dbDoc.set({hall:hall, points:points, stalls:stalls, nextPointN:nextPointN, nextStallN:nextStallN, updatedAt:new Date().toISOString()})
+      dbDoc.set({hall:hall, points:points, stalls:stalls, walls:walls, columns:columns, doors:doors,
+        nextPointN:nextPointN, nextStallN:nextStallN, nextWallN:nextWallN, nextColumnN:nextColumnN, nextDoorN:nextDoorN,
+        updatedAt:new Date().toISOString()})
         .then(function(){ setSync("live"); setTimeout(function(){ suppressRemote = false; }, 50); })
         .catch(function(){ setSync("offline (draft kept locally)"); suppressRemote = false; });
     }, 250);
@@ -1006,8 +1353,14 @@
     if(d.hall){ hall = d.hall; inputHallW.value = hall.w; inputHallH.value = hall.h; inputTile.value = hall.tile; }
     points = d.points || [];
     stalls = d.stalls || [];
+    walls = d.walls || [];
+    columns = d.columns || [];
+    doors = d.doors || [];
     nextPointN = d.nextPointN || (points.length+1);
     nextStallN = d.nextStallN || (stalls.length+1);
+    nextWallN = d.nextWallN || (walls.length+1);
+    nextColumnN = d.nextColumnN || (columns.length+1);
+    nextDoorN = d.nextDoorN || (doors.length+1);
     fitView();
     render();
   }
@@ -1041,13 +1394,18 @@
   }
 
   // ---- mode switching ----
+  function updateDrawOptionsVisibility(){
+    drawOptionsRow.hidden = !(mode === "draw" && drawKind !== "stall");
+  }
   function syncModeButtons(){
     [["draw",modeDraw],["select",modeSelect],["pan",modePan],["delete",modeDelete]].forEach(function(pair){
       pair[1].setAttribute("aria-pressed", mode === pair[0] ? "true" : "false");
     });
     svg.className = "mode-" + mode;
     currentPath = [];
-    if(mode !== "select") selectedStallId = null;
+    if(mode !== "select") selection = null;
+    drawKindGroup.hidden = mode !== "draw";
+    updateDrawOptionsVisibility();
     render();
   }
   modeDraw.addEventListener("click", function(){ mode="draw"; syncModeButtons(); });
@@ -1055,10 +1413,33 @@
   modePan.addEventListener("click", function(){ mode="pan"; syncModeButtons(); });
   modeDelete.addEventListener("click", function(){ mode="delete"; syncModeButtons(); });
 
+  function setDrawKind(k){
+    drawKind = k;
+    currentPath = [];
+    [["stall",kindStall],["wall",kindWall],["column",kindColumn],["door",kindDoor]].forEach(function(pair){
+      pair[1].setAttribute("aria-pressed", drawKind === pair[0] ? "true" : "false");
+    });
+    wallThicknessField.hidden = drawKind !== "wall";
+    columnDField.hidden = drawKind !== "column";
+    doorWField.hidden = drawKind !== "door";
+    updateDrawOptionsVisibility();
+    render();
+  }
+  kindStall.addEventListener("click", function(){ setDrawKind("stall"); });
+  kindWall.addEventListener("click", function(){ setDrawKind("wall"); });
+  kindColumn.addEventListener("click", function(){ setDrawKind("column"); });
+  kindDoor.addEventListener("click", function(){ setDrawKind("door"); });
+
   // ---- wire up ----
   svg.addEventListener("click", onCanvasClick);
   btnCancel.addEventListener("click", cancelPath);
-  btnCloseShape.addEventListener("click", function(){ if(currentPath.length>=3) closePath(); });
+  btnCloseShape.addEventListener("click", function(){
+    if(drawKind === "wall"){
+      if(currentPath.length >= 2) closeWallChain(false);
+    } else {
+      if(currentPath.length >= 3) closePath();
+    }
+  });
   btnUndo.addEventListener("click", undo);
   btnClear.addEventListener("click", clearAll);
   btnApplyHall.addEventListener("click", applyHallSettings);
@@ -1068,8 +1449,26 @@
   segAngle.addEventListener("keydown", function(e){ if(e.key==="Enter") addSegmentPoint(); });
   btnRotateCw.addEventListener("click", function(){ rotateSelected(1); });
   btnRotateCcw.addEventListener("click", function(){ rotateSelected(-1); });
-  btnSelDelete.addEventListener("click", function(){ if(selectedStallId) deleteStall(selectedStallId); });
-  selClose.addEventListener("click", function(){ selectStall(null); });
+  btnSelDelete.addEventListener("click", deleteSelected);
+  selClose.addEventListener("click", function(){ select(null); });
+  selThickness.addEventListener("change", function(){
+    if(!selection || selection.type !== "wall") return;
+    var w = findWall(selection.id); if(!w) return;
+    var v = parseFloat(selThickness.value);
+    if(isFinite(v) && v>0){ pushHistory(); w.thickness = v; save(); render(); }
+  });
+  selDiameter.addEventListener("change", function(){
+    if(!selection || selection.type !== "column") return;
+    var c = findColumn(selection.id); if(!c) return;
+    var v = parseFloat(selDiameter.value);
+    if(isFinite(v) && v>0){ pushHistory(); c.d = v; save(); render(); }
+  });
+  selDoorwidth.addEventListener("change", function(){
+    if(!selection || selection.type !== "door") return;
+    var d = findDoor(selection.id); if(!d) return;
+    var v = parseFloat(selDoorwidth.value);
+    if(isFinite(v) && v>0){ pushHistory(); d.width = v; save(); render(); }
+  });
   btnZoomIn.addEventListener("click", function(){ zoomCenter(0.8); });
   btnZoomOut.addEventListener("click", function(){ zoomCenter(1.25); });
   btnZoomFit.addEventListener("click", fitView);
@@ -1089,6 +1488,7 @@
 
   snapSelect.value = snapMode;
   syncModeButtons();
+  setDrawKind(drawKind);
   boot();
 })();
 </script>

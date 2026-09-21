@@ -8,8 +8,10 @@ A true-to-scale floor plan tool for laying out vendor stalls for a food & fair e
 - Click to drop points; consecutive clicks auto-chain into a measured line (live distance + bearing shown as you go).
 - Type an exact distance + bearing instead of eyeballing a click.
 - Close a traced path into a labeled stall — area (m²) and bounding size are computed automatically.
+- Trace the hall's actual walls the same way — open runs ("Finish wall") or closed room outlines — to match an irregular real-world footprint instead of just a rectangle.
+- Drop rounded structural columns and place doors that snap to the nearest wall's angle and draw as an open-door swing symbol.
 - Zoom, pan, and rotate the whole view to match the angle of a hand-drawn sketch.
-- Select any stall to rotate it or check its area/dimensions; delete mode to remove dots or stalls.
+- Select any stall, wall, column, or door to rotate, resize (wall thickness / column diameter / door width), or delete it.
 - Snap to tile (0.6 m), metre, or off.
 
 ## Running it
